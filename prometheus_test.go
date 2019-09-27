@@ -9,9 +9,18 @@ import (
 	"github.com/rcrowley/go-metrics"
 )
 
+func TestPrometheusRegistration(t *testing.T) {
+	defaultRegistry := prometheus.DefaultRegisterer
+	pClient := NewPrometheusProvider(metrics.DefaultRegistry, "test", "subsys", defaultRegistry, 1*time.Second)
+	if pClient.promRegistry != defaultRegistry {
+		t.Fatalf("Failed to pass prometheus registry to go-metrics provider")
+	}
+}
+
 func TestUpdatePrometheusMetricsOnce(t *testing.T) {
+	prometheusRegistry := prometheus.NewRegistry()
 	metricsRegistry := metrics.NewRegistry()
-	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", 1*time.Second)
+	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", prometheusRegistry, 1*time.Second)
 	metricsRegistry.Register("counter", metrics.NewCounter())
 	pClient.UpdatePrometheusMetricsOnce()
 	gauge := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -20,7 +29,7 @@ func TestUpdatePrometheusMetricsOnce(t *testing.T) {
 		Name:      "counter",
 		Help:      "counter",
 	})
-	err := pClient.PromRegistry.Register(gauge)
+	err := pClient.promRegistry.Register(gauge)
 	if err == nil {
 		t.Fatalf("Go-metrics registry didn't get registered to prometheus registry")
 	}
@@ -28,8 +37,9 @@ func TestUpdatePrometheusMetricsOnce(t *testing.T) {
 }
 
 func TestUpdatePrometheusMetrics(t *testing.T) {
+	prometheusRegistry := prometheus.NewRegistry()
 	metricsRegistry := metrics.NewRegistry()
-	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", 1*time.Second)
+	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", prometheusRegistry, 1*time.Second)
 	metricsRegistry.Register("counter", metrics.NewCounter())
 	go pClient.UpdatePrometheusMetrics()
 	time.Sleep(2 * time.Second)
@@ -39,26 +49,48 @@ func TestUpdatePrometheusMetrics(t *testing.T) {
 		Name:      "counter",
 		Help:      "counter",
 	})
-	err := pClient.PromRegistry.Register(gauge)
+	err := pClient.promRegistry.Register(gauge)
 	if err == nil {
 		t.Fatalf("Go-metrics registry didn't get registered to prometheus registry")
 	}
 
 }
 
-func TestPrometheusMetricsGetUpdated(t *testing.T) {
+func TestPrometheusCounterGetUpdated(t *testing.T) {
+	prometheusRegistry := prometheus.NewRegistry()
 	metricsRegistry := metrics.NewRegistry()
-	pClient := NewPrometheusProvider(metricsRegistry, "a", "a", 1*time.Second)
+	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", prometheusRegistry, 3*time.Second)
 	cntr := metrics.NewCounter()
 	metricsRegistry.Register("counter", cntr)
 	cntr.Inc(2)
 	go pClient.UpdatePrometheusMetrics()
 	cntr.Inc(13)
 	time.Sleep(5 * time.Second)
-	metrics, _ := pClient.PromRegistry.Gather()
+	metrics, _ := prometheusRegistry.Gather()
 	serialized := fmt.Sprint(metrics[0])
-	expected := fmt.Sprintf("name:\"a_a_counter\" help:\"counter\" type:GAUGE metric:<gauge:<value:%d > > ", cntr.Count())
+	expected := fmt.Sprintf("name:\"test_subsys_counter\" help:\"counter\" type:COUNTER metric:<counter:<value:%d > > ", cntr.Count())
 	if serialized != expected {
-		t.Fatalf("Go-metrics value and prometheus metics value do not match, got %s , expected %s", serialized, expected)
+		t.Fatalf("Go-metrics value and prometheus metrics value do not match")
+	}
+}
+
+func TestPrometheusGaugeGetUpdated(t *testing.T) {
+	prometheusRegistry := prometheus.NewRegistry()
+	metricsRegistry := metrics.NewRegistry()
+	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", prometheusRegistry, 1*time.Second)
+	gm := metrics.NewGauge()
+	metricsRegistry.Register("gauge", gm)
+	gm.Update(2)
+	go pClient.UpdatePrometheusMetrics()
+	gm.Update(13)
+	time.Sleep(5 * time.Second)
+	metrics, _ := prometheusRegistry.Gather()
+	if len(metrics) == 0 {
+		t.Fatalf("prometheus was unable to register the metric")
+	}
+	serialized := fmt.Sprint(metrics[0])
+	expected := fmt.Sprintf("name:\"test_subsys_gauge\" help:\"gauge\" type:GAUGE metric:<gauge:<value:%d > > ", gm.Value())
+	if serialized != expected {
+		t.Fatalf("Go-metrics value and prometheus metrics value do not match")
 	}
 }
