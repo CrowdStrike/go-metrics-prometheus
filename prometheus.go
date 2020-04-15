@@ -15,6 +15,7 @@ import (
 type PrometheusConfig struct {
 	namespace     string
 	registry      metrics.Registry // Registry to be exported
+	constLabels   prometheus.Labels
 	subsystem     string
 	promRegistry  prometheus.Registerer //Prometheus registry
 	flushInterval time.Duration         //interval to update prom metrics
@@ -25,17 +26,26 @@ type PrometheusConfig struct {
 
 // NewPrometheusProvider returns a Provider that produces Prometheus metrics.
 // Namespace and subsystem are applied to all produced metrics.
-func NewPrometheusProvider(r metrics.Registry, namespace string, subsystem string, promReg prometheus.Registerer, flushInterval time.Duration) *PrometheusConfig {
-	return &PrometheusConfig{
+func NewPrometheusProvider(r metrics.Registry, namespace string, subsystem string, constLabels prometheus.Labels, promReg prometheus.Registerer, flushInterval time.Duration) *PrometheusConfig {
+	p := &PrometheusConfig{
 		namespace:     namespace,
 		subsystem:     subsystem,
 		registry:      r,
+		constLabels:   constLabels,
 		promRegistry:  promReg,
 		flushInterval: flushInterval,
 		counters:      make(map[string]prometheus.Counter),
 		gauges:        make(map[string]prometheus.Gauge),
 		gaugeVecs:     make(map[string]prometheus.GaugeVec),
 	}
+
+	flattenConstLabels := make(map[string]string, len(constLabels))
+	for key, val := range constLabels {
+		flattenConstLabels[p.flattenKey(key)] = val
+	}
+	p.constLabels = flattenConstLabels
+
+	return p
 }
 
 // GetFlushInterval returns the time interval for metric update
@@ -56,10 +66,11 @@ func (c *PrometheusConfig) counterFromNameAndValue(name string, val float64) {
 	counter, ok := c.counters[key]
 	if !ok {
 		counter = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: c.flattenKey(c.namespace),
-			Subsystem: c.flattenKey(c.subsystem),
-			Name:      c.flattenKey(name),
-			Help:      name,
+			Namespace:   c.flattenKey(c.namespace),
+			Subsystem:   c.flattenKey(c.subsystem),
+			Name:        c.flattenKey(name),
+			ConstLabels: c.constLabels,
+			Help:        name,
 		})
 		c.promRegistry.MustRegister(counter)
 		c.counters[key] = counter
@@ -72,10 +83,11 @@ func (c *PrometheusConfig) meterVec(name string, snap metrics.Meter) {
 	g, ok := c.gaugeVecs[key]
 	if !ok {
 		g = *prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: c.flattenKey(c.namespace),
-			Subsystem: c.flattenKey(c.subsystem),
-			Name:      c.flattenKey(name),
-			Help:      name,
+			Namespace:   c.flattenKey(c.namespace),
+			Subsystem:   c.flattenKey(c.subsystem),
+			Name:        c.flattenKey(name),
+			ConstLabels: c.constLabels,
+			Help:        name,
 		},
 			[]string{
 				"type",
@@ -97,10 +109,11 @@ func (c *PrometheusConfig) histogramVec(name string, snap metrics.Histogram) {
 	g, ok := c.gaugeVecs[key]
 	if !ok {
 		g = *prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: c.flattenKey(c.namespace),
-			Subsystem: c.flattenKey(c.subsystem),
-			Name:      c.flattenKey(name),
-			Help:      name,
+			Namespace:   c.flattenKey(c.namespace),
+			Subsystem:   c.flattenKey(c.subsystem),
+			Name:        c.flattenKey(name),
+			ConstLabels: c.constLabels,
+			Help:        name,
 		},
 			[]string{
 				"type",
@@ -126,10 +139,11 @@ func (c *PrometheusConfig) gaugeFromNameAndValue(name string, val float64) {
 	g, ok := c.gauges[key]
 	if !ok {
 		g = prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: c.flattenKey(c.namespace),
-			Subsystem: c.flattenKey(c.subsystem),
-			Name:      c.flattenKey(name),
-			Help:      name,
+			Namespace:   c.flattenKey(c.namespace),
+			Subsystem:   c.flattenKey(c.subsystem),
+			Name:        c.flattenKey(name),
+			ConstLabels: c.constLabels,
+			Help:        name,
 		})
 		c.promRegistry.MustRegister(g)
 		c.gauges[key] = g
