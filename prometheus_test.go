@@ -11,7 +11,7 @@ import (
 
 func TestPrometheusRegistration(t *testing.T) {
 	defaultRegistry := prometheus.DefaultRegisterer
-	pClient := NewPrometheusProvider(metrics.DefaultRegistry, "test", "subsys", defaultRegistry, 1*time.Second)
+	pClient := NewPrometheusProvider(metrics.DefaultRegistry, "test", "subsys", nil, defaultRegistry, 1*time.Second)
 	if pClient.promRegistry != defaultRegistry {
 		t.Fatalf("Failed to pass prometheus registry to go-metrics provider")
 	}
@@ -20,7 +20,7 @@ func TestPrometheusRegistration(t *testing.T) {
 func TestUpdatePrometheusMetricsOnce(t *testing.T) {
 	prometheusRegistry := prometheus.NewRegistry()
 	metricsRegistry := metrics.NewRegistry()
-	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", prometheusRegistry, 1*time.Second)
+	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", nil, prometheusRegistry, 1*time.Second)
 	metricsRegistry.Register("counter", metrics.NewCounter())
 	pClient.UpdatePrometheusMetricsOnce()
 	gauge := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -39,7 +39,7 @@ func TestUpdatePrometheusMetricsOnce(t *testing.T) {
 func TestUpdatePrometheusMetrics(t *testing.T) {
 	prometheusRegistry := prometheus.NewRegistry()
 	metricsRegistry := metrics.NewRegistry()
-	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", prometheusRegistry, 1*time.Second)
+	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", nil, prometheusRegistry, 1*time.Second)
 	metricsRegistry.Register("counter", metrics.NewCounter())
 	go pClient.UpdatePrometheusMetrics()
 	time.Sleep(2 * time.Second)
@@ -59,7 +59,7 @@ func TestUpdatePrometheusMetrics(t *testing.T) {
 func TestPrometheusCounterGetUpdated(t *testing.T) {
 	prometheusRegistry := prometheus.NewRegistry()
 	metricsRegistry := metrics.NewRegistry()
-	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", prometheusRegistry, 3*time.Second)
+	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", nil, prometheusRegistry, 3*time.Second)
 	cntr := metrics.NewCounter()
 	metricsRegistry.Register("counter", cntr)
 	cntr.Inc(2)
@@ -77,7 +77,7 @@ func TestPrometheusCounterGetUpdated(t *testing.T) {
 func TestPrometheusGaugeGetUpdated(t *testing.T) {
 	prometheusRegistry := prometheus.NewRegistry()
 	metricsRegistry := metrics.NewRegistry()
-	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", prometheusRegistry, 1*time.Second)
+	pClient := NewPrometheusProvider(metricsRegistry, "test", "subsys", nil, prometheusRegistry, 1*time.Second)
 	gm := metrics.NewGauge()
 	metricsRegistry.Register("gauge", gm)
 	gm.Update(2)
